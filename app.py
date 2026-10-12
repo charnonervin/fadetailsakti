@@ -495,7 +495,7 @@ if uploaded_file is not None:
     )
 
     selected_akun = st.sidebar.multiselect(
-        "Kode Akun:",
+        "Kode Akun Belanja:",
         options=list_akun,
         placeholder="Semua Akun (atau pilih beberapa)"
     )
@@ -1248,7 +1248,7 @@ if uploaded_file is not None:
         st.markdown("---")
 
         st.subheader(
-            "💳 Ringkasan Realisasi per Kode Akun"
+            "💳 Ringkasan Realisasi per Kode Akun Belanja"
         )
 
         akun_summary = (
