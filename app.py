@@ -65,7 +65,7 @@ st.caption(
 
 def get_jenis_belanja(akun):
     """
-    Menentukan jenis belanja berdasarkan 2 digit awal nomor akun.
+    Menentukan jenis belanja berdasarkan 2 digit awal kode akun.
     """
     akun = str(akun).strip()
 
@@ -86,7 +86,7 @@ def get_jenis_belanja(akun):
 
 def normalize_account(value):
     """
-    Menormalisasi nomor akun agar konsisten.
+    Menormalisasi kode akun agar konsisten.
     Contoh:
         511111.0 -> 511111
         511111   -> 511111
@@ -483,7 +483,7 @@ if uploaded_file is not None:
         ].copy()
 
     # --------------------------------------------------------
-    # FILTER NOMOR AKUN
+    # FILTER KODE AKUN
     # --------------------------------------------------------
 
     list_akun = sorted(
@@ -495,7 +495,7 @@ if uploaded_file is not None:
     )
 
     selected_akun = st.sidebar.multiselect(
-        "Nomor Akun:",
+        "Kode Akun:",
         options=list_akun,
         placeholder="Semua Akun (atau pilih beberapa)"
     )
@@ -1248,7 +1248,7 @@ if uploaded_file is not None:
         st.markdown("---")
 
         st.subheader(
-            "💳 Ringkasan Realisasi per Nomor Akun"
+            "💳 Ringkasan Realisasi per Kode Akun"
         )
 
         akun_summary = (
