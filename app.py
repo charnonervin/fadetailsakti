@@ -1,6 +1,20 @@
+import gc
+import io
+import logging
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+
+# ============================================================
+# PRIVACY / LOGGING
+# ============================================================
+# Jangan mencatat nama file upload, isi file, DataFrame, atau exception
+# sensitif ke log aplikasi. Log platform/provider tetap berada di bawah
+# kontrol platform hosting dan tidak dapat dihapus oleh aplikasi.
+logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger("streamlit").setLevel(logging.WARNING)
+logging.getLogger("streamlit.runtime").setLevel(logging.WARNING)
 
 
 # ============================================================
@@ -65,7 +79,7 @@ st.caption(
 
 def get_jenis_belanja(akun):
     """
-    Menentukan jenis belanja berdasarkan 2 digit awal kode akun.
+    Menentukan jenis belanja berdasarkan 2 digit awal nomor akun.
     """
     akun = str(akun).strip()
 
@@ -86,7 +100,7 @@ def get_jenis_belanja(akun):
 
 def normalize_account(value):
     """
-    Menormalisasi kode akun agar konsisten.
+    Menormalisasi nomor akun agar konsisten.
     Contoh:
         511111.0 -> 511111
         511111   -> 511111
@@ -130,10 +144,15 @@ def format_rupiah(value):
 # 5. PARSER FA DETAIL
 # ============================================================
 
-@st.cache_data
-def parse_fa_detail(file):
+def parse_fa_detail(file_bytes):
+    """
+    Membaca file Excel dari bytes di memori.
 
-    df_raw = pd.read_excel(file, header=None)
+    Tidak menggunakan st.cache_data dan tidak menulis file ke disk.
+    BytesIO ditutup segera setelah pandas selesai membaca workbook.
+    """
+    with io.BytesIO(file_bytes) as excel_buffer:
+        df_raw = pd.read_excel(excel_buffer, header=None)
 
     # --------------------------------------------------------
     # Deteksi bulan pelaporan
@@ -372,32 +391,55 @@ uploaded_file = st.sidebar.file_uploader(
     "📂 Unggah File FA Detail (.xlsx)",
     type=["xlsx", "xls"]
 )
-
+df = None
+default_month = 10
 
 # ============================================================
-# 7. JIKA FILE SUDAH DIUPLOAD
+# 7. PROSES FILE HANYA DI MEMORI
 # ============================================================
 
 if uploaded_file is not None:
+    file_bytes = None
 
-    df, default_month = parse_fa_detail(uploaded_file)
+    try:
+        # Bytes hanya digunakan di RAM; tidak ditulis ke filesystem.
+        file_bytes = uploaded_file.getvalue()
+        df, default_month = parse_fa_detail(file_bytes)
+    except Exception:
+        # Jangan tampilkan exception mentah karena dapat mengandung
+        # nama/path file atau detail internal.
+        st.error(
+            "❌ File tidak dapat diproses. "
+            "Periksa format Excel dan coba lagi."
+        )
+        df = None
+    finally:
+        # Lepaskan file mentah secepat mungkin.
+        file_bytes = None
+        uploaded_file = None
+        gc.collect()
 
-    # --------------------------------------------------------
-    # Validasi data
-    # --------------------------------------------------------
+    if df is None:
+        st.stop()
 
     if df.empty:
-
         st.error(
             "❌ Data FA Detail tidak berhasil dibaca "
             "dari file yang diunggah."
         )
-
+        del df
+        gc.collect()
         st.stop()
 
-    # ========================================================
-    # PARAMETER WAKTU
-    # ========================================================
+# ========================================================
+# 8. DASHBOARD DARI DATA HASIL PARSING
+# ========================================================
+
+if df is not None:
+
+        # ========================================================
+        # PARAMETER WAKTU
+        # ========================================================
 
     st.sidebar.header("⏱️ Parameter Waktu")
 
@@ -483,7 +525,7 @@ if uploaded_file is not None:
         ].copy()
 
     # --------------------------------------------------------
-    # FILTER KODE AKUN
+    # FILTER NOMOR AKUN
     # --------------------------------------------------------
 
     list_akun = sorted(
@@ -495,7 +537,7 @@ if uploaded_file is not None:
     )
 
     selected_akun = st.sidebar.multiselect(
-        "Kode Akun Belanja:",
+        "Kode Akun:",
         options=list_akun,
         placeholder="Semua Akun (atau pilih beberapa)"
     )
@@ -1248,7 +1290,7 @@ if uploaded_file is not None:
         st.markdown("---")
 
         st.subheader(
-            "💳 Ringkasan Realisasi per Kode Akun Belanja"
+            "💳 Ringkasan Realisasi per Nomor Akun"
         )
 
         akun_summary = (
@@ -1281,17 +1323,36 @@ if uploaded_file is not None:
             use_container_width=True
         )
 
-else:
-
-    # ========================================================
-    # BELUM ADA FILE
-    # ========================================================
-
+if df is None:
     st.info(
         "👋 Silakan unggah file FA Detail Anda "
         "di menu sebelah kiri (sidebar) untuk "
         "mulai mengeksplorasi data."
-    )# Footer diletakkan di luar blok if/else
+    )
+
+# ============================================================
+# 10. FINAL MEMORY CLEANUP
+# ============================================================
+# Aplikasi tidak menyimpan DataFrame/file ke st.session_state atau cache.
+# Setelah render selesai, lepaskan referensi object sebanyak mungkin.
+try:
+    del df_filtered
+except (NameError, UnboundLocalError):
+    pass
+
+try:
+    del df
+except (NameError, UnboundLocalError):
+    pass
+
+try:
+    del df_step0, df_step1, df_step2, df_step3, df_step4, df_step5
+except (NameError, UnboundLocalError):
+    pass
+
+gc.collect()
+
+# Footer diletakkan di luar blok if/else
 st.markdown(
     """
     <div class="charno-footer">
